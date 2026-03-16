@@ -1755,17 +1755,8 @@ tbody td { padding: 14px 18px; font-size: 15px; }  /* << TAMANHO DA FONTE NAS TA
    Para adicionar: copie uma linha { } e altere os valores.
    Para remover:   delete a linha inteira (incluindo a virgula).
    ============================================================ */
-let products = [
-  { id:1, name:'Frigideira Antiaderente 26cm',  cat:'Frigideiras e Panelas', qty:85, min:20, price:89.90,  sku:'FRIG-001', platform:'shopify' },
-  { id:2, name:'Faca Chef 8 Pol Inox',           cat:'Facas e Talheres',      qty:42, min:15, price:129.90, sku:'FACA-001', platform:'ml'      },
-  { id:3, name:'Espatula de Silicone',           cat:'Utensilios',            qty:14, min:20, price:29.90,  sku:'UTIL-003', platform:'woo'     },
-  { id:4, name:'Panela de Pressao 6L',           cat:'Frigideiras e Panelas', qty:8,  min:10, price:219.90, sku:'PAN-002',  platform:'shopify' },
-  { id:5, name:'Liquidificador 1000W',           cat:'Eletro Portateis',      qty:23, min:8,  price:349.90, sku:'ELET-001', platform:'ml'      },
-  { id:6, name:'Pote Hermetico 1L (kit 5pcs)',   cat:'Armazenamento',         qty:67, min:25, price:44.90,  sku:'ARM-001',  platform:'woo'     },
-  { id:7, name:'Colher de Pau c/ 3 pecas',       cat:'Utensilios',            qty:5,  min:15, price:19.90,  sku:'UTIL-001', platform:'manual'  },
-  /* Adicione seus produtos aqui: */
-  /* { id:8, name:'Seu Produto', cat:'Categoria', qty:50, min:10, price:49.90, sku:'SKU-001', platform:'manual' }, */
-];
+/* Array começa vazio — produtos carregados do Firestore */
+let products = [];
 
 /* Lista de vendas (começa vazia, vai sendo preenchida ao registrar vendas) */
 let history = [];
@@ -2118,8 +2109,10 @@ function renderSyncLog() {
 
 /* Atualiza graficos e metricas da aba Relatorios */
 function renderReports() {
-  const totalVendas = history.filter(h => !h.cancelado).length + Math.floor(Math.random() * 30 + 15);
-  const receita     = history.filter(h => !h.cancelado).reduce((a, h) => a + h.total, 0) + Math.random() * 3000 + 1500;
+  /* ── Métricas com dados REAIS das vendas ──────────────────── */
+  const vendasConfirmadas = history.filter(h => !h.cancelado);
+  const totalVendas = vendasConfirmadas.length;
+  const receita     = vendasConfirmadas.reduce((a, h) => a + h.total, 0);
   const ticket      = receita / Math.max(totalVendas, 1);
 
   document.getElementById('report-metrics').innerHTML = `
@@ -2128,7 +2121,7 @@ function renderReports() {
       <div class="report-metric-label">Vendas no periodo</div>
     </div>
     <div class="report-metric">
-      <div class="report-metric-val" style="color:var(--cor-principal)">R$ ${Math.round(receita).toLocaleString('pt-BR')}</div>
+      <div class="report-metric-val" style="color:var(--cor-verde)">R$ ${Math.round(receita).toLocaleString('pt-BR')}</div>
       <div class="report-metric-label">Receita total</div>
     </div>
     <div class="report-metric">
@@ -2136,17 +2129,37 @@ function renderReports() {
       <div class="report-metric-label">Ticket medio</div>
     </div>`;
 
-  /* Gera dados para o grafico de barras (vendas por dia) */
+  /* ── Gráfico de barras: vendas por dia (dados reais) ─────── */
+  /* O loop percorre cada dia do período e conta vendas reais.
+     A data salva no Firestore está no formato: "dd/mm/aaaa, hh:mm:ss"
+     então comparamos apenas os primeiros 10 caracteres (a data). */
   const days   = currentPeriod === '7d' ? 7 : currentPeriod === '30d' ? 30 : 90;
-  const labels = [], data = [], now = new Date();
+  const labels = [];
+  const data   = [];
+  const now    = new Date();
+
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
+
+    /* Formato do label no gráfico: "16/03" */
     labels.push(d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }));
-    data.push(Math.floor(Math.random() * 18 + 2));
+
+    /* Formato para comparar com a data salva: "16/03/2026" */
+    const diaStr = d.toLocaleDateString('pt-BR');
+
+    /* Conta quantas vendas reais aconteceram nesse dia */
+    const vendasNoDia = vendasConfirmadas.filter(h => {
+      if (!h.time) return false;
+      /* h.time vem do Firestore como "16/03/2026, 14:32:00"
+         pegamos só os 10 primeiros chars para comparar a data */
+      return h.time.substring(0, 10) === diaStr;
+    }).length;
+
+    data.push(vendasNoDia);
   }
 
-  /* Grafico de barras: vendas por dia */
+  /* Grafico de barras */
   if (chartVendas) chartVendas.destroy();
   chartVendas = new Chart(document.getElementById('chartVendas').getContext('2d'), {
     type: 'bar',
@@ -2155,7 +2168,7 @@ function renderReports() {
       datasets: [{
         label: 'Vendas',
         data,
-        backgroundColor: '#1B6B2E',  /* << cor principal TOP MALL */
+        backgroundColor: '#1B6B2E',
         borderRadius: 6,
         borderSkipped: false
       }]
@@ -2165,39 +2178,98 @@ function renderReports() {
       plugins: { legend: { display: false } },
       scales: {
         x: { grid: { display: false }, ticks: { font: { size: 11 }, maxTicksLimit: 10 } },
-        y: { grid: { color: '#F3F4F6' }, ticks: { font: { size: 11 } } }
+        y: {
+          grid: { color: '#F3F4F6' },
+          ticks: { font: { size: 11 }, stepSize: 1 },
+          min: 0
+        }
       }
     }
   });
 
-  /* Grafico de rosca: vendas por canal */
-  if (chartCanais) chartCanais.destroy();
-  chartCanais = new Chart(document.getElementById('chartCanais').getContext('2d'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Mercado Livre', 'Shopee', 'TikTok Shop', 'Kwai Shop', 'Manual'],
-      datasets: [{
-        data: [35, 28, 20, 12, 5],
-        backgroundColor: ['#E8C000', '#EE4D2D', '#010101', '#FF4E00', '#9CA3AF'],  /* << cores dos canais */
-        borderWidth: 3, borderColor: '#fff'
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16 } } }
-    }
+  /* ── Gráfico de rosca: vendas por canal (dados reais) ──────
+     Agrupa as vendas reais por canal e monta o gráfico dinamicamente.
+     Se não tiver vendas ainda, mostra mensagem de vazio. */
+  const coresCanais = {
+    ml: '#E8C000', shopee: '#EE4D2D', tiktok: '#010101',
+    kwai: '#FF4E00', manual: '#9CA3AF', amazon: '#FF9900',
+    magalu: '#0086FF', americanas: '#E60014', shopify: '#5A8A3C',
+    woo: '#7F54B3', instagram: '#E1306C', ifood: '#EA1D2C',
+    casasbahia: '#0057A8'
+  };
+
+  /* Conta vendas por canal */
+  const vendasPorCanal = {};
+  vendasConfirmadas.forEach(h => {
+    const canal = h.channel || 'manual';
+    vendasPorCanal[canal] = (vendasPorCanal[canal] || 0) + 1;
   });
 
-  /* Top 5 produtos mais vendidos */
-  document.getElementById('top-products').innerHTML = products
-    .slice().sort(() => Math.random() - .5).slice(0, 5)
-    .map((p, i) => `<tr>
-      <td style="font-weight:700;font-size:18px;color:var(--cor-verde)">${i + 1}</td>
-      <td style="font-weight:600">${p.name}</td>
-      <td>${Math.floor(Math.random() * 30 + 5)} un.</td>
-      <td style="font-weight:700">R$ ${fmt(Math.random() * 800 + 200)}</td>
-      <td><span class="badge badge-gray">${platformLabel(p.platform)}</span></td>
-    </tr>`).join('');
+  const canaisLabels = Object.keys(vendasPorCanal).map(c => platformLabel(c));
+  const canaisData   = Object.values(vendasPorCanal);
+  const canaisCores  = Object.keys(vendasPorCanal).map(c => coresCanais[c] || '#9CA3AF');
+
+  if (chartCanais) chartCanais.destroy();
+
+  if (canaisData.length === 0) {
+    /* Sem vendas: mostra gráfico vazio com mensagem */
+    chartCanais = new Chart(document.getElementById('chartCanais').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Sem vendas ainda'],
+        datasets: [{ data: [1], backgroundColor: ['#E5E7EB'], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16 } },
+          tooltip: { enabled: false }
+        }
+      }
+    });
+  } else {
+    chartCanais = new Chart(document.getElementById('chartCanais').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: canaisLabels,
+        datasets: [{
+          data: canaisData,
+          backgroundColor: canaisCores,
+          borderWidth: 3, borderColor: '#fff'
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16 } } }
+      }
+    });
+  }
+
+  /* ── Top 5 produtos mais vendidos (dados reais) ─────────── */
+  const vendasPorProduto = {};
+  vendasConfirmadas.forEach(h => {
+    if (!vendasPorProduto[h.name]) {
+      vendasPorProduto[h.name] = { qty: 0, total: 0, channel: h.channel };
+    }
+    vendasPorProduto[h.name].qty   += h.qty;
+    vendasPorProduto[h.name].total += h.total;
+  });
+
+  const top5 = Object.entries(vendasPorProduto)
+    .sort((a, b) => b[1].qty - a[1].qty)
+    .slice(0, 5);
+
+  document.getElementById('top-products').innerHTML = top5.length
+    ? top5.map(([nome, dados], i) => `<tr>
+        <td style="font-weight:700;font-size:18px;color:var(--cor-verde)">${i + 1}</td>
+        <td style="font-weight:600">${nome}</td>
+        <td>${dados.qty} un.</td>
+        <td style="font-weight:700">R$ ${fmt(dados.total)}</td>
+        <td><span class="badge badge-gray">${platformLabel(dados.channel)}</span></td>
+      </tr>`).join('')
+    : `<tr><td colspan="5" class="empty" style="padding:2rem">
+         Nenhuma venda registrada ainda. As vendas aparecerão aqui automaticamente.
+       </td></tr>`;
 }
 
 /* Atalho: atualiza TUDO de uma vez */
