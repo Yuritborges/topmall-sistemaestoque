@@ -28,12 +28,13 @@
 <script>
 /*
   Credenciais do projeto Firebase da Top Mall.
-  Essas chaves identificam qual projeto usar no Google — é seguro deixar aqui,
-  porque o Firebase usa Regras de Segurança para proteger os dados, não essa chave.
-  Mas mesmo assim, não compartilhe o arquivo com pessoas de fora da empresa, tá?
+  Chave restrita ao domínio top-mall-utilidades.web.app
+  Restrição de domínio configurada em 18/03/2026 — Google Cloud Console.
+  Qualquer uso fora deste domínio é automaticamente bloqueado.
 */
 const firebaseConfig = {
   apiKey:            "AIzaSyBAEiUvzBHUcGtcL4NgTc9LvYEPXFrzfXY",
+  
   authDomain:        "top-mall-utilidades.firebaseapp.com",
   projectId:         "top-mall-utilidades",
   storageBucket:     "top-mall-utilidades.firebasestorage.app",
@@ -1534,6 +1535,8 @@ tbody td { padding: 14px 18px; font-size: 15px; }  /* << TAMANHO DA FONTE NAS TA
 }
 
 </style>
+  <!-- PDF.js — leitura de PDFs diretamente no navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 
@@ -1718,7 +1721,14 @@ tbody td { padding: 14px 18px; font-size: 15px; }  /* << TAMANHO DA FONTE NAS TA
 -->
   <div id="tab-produtos" class="tab-content">
 
-    <p class="section-title">&#10133; Adicionar novo produto</p>
+    <!-- Botão importar NF — abre modal de leitura de PDF -->
+  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+    <button class="btn-green" onclick="abrirModalNF()" style="display:flex;align-items:center;gap:8px;font-size:14px">
+      📄 Importar Nota Fiscal (PDF)
+    </button>
+  </div>
+
+  <p class="section-title">&#10133; Adicionar novo produto</p>
     <div class="card card-p">
 
       <!-- Linha 1: nome e categoria -->
@@ -2641,6 +2651,73 @@ tbody td { padding: 14px 18px; font-size: 15px; }  /* << TAMANHO DA FONTE NAS TA
   <!-- Lista de eventos -->
   <div class="card card-p" id="auditoria-lista">
     <p class="empty">Carregando registros...</p>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: IMPORTAR NOTA FISCAL
+     Lê PDF da nota, extrai produtos e preenche o formulário
+     ============================================================ -->
+<div id="modal-nf" class="modal-overlay">
+  <div class="modal-box" style="max-width:680px">
+    <h2>📄 Importar Nota Fiscal</h2>
+    <p style="color:#6B7280;font-size:13px;margin-bottom:1.2rem">
+      Selecione o PDF da nota fiscal. O sistema vai extrair os produtos
+      automaticamente — você só precisará informar o preço de venda de cada um.
+    </p>
+
+    <!-- Upload do PDF -->
+    <div id="nf-upload-area" style="border:2px dashed #D1D5DB;border-radius:12px;
+         padding:2rem;text-align:center;cursor:pointer;margin-bottom:1rem;
+         transition:all 0.2s" onclick="document.getElementById('nf-pdf-input').click()"
+         ondragover="event.preventDefault();this.style.borderColor='var(--cor-primaria)'"
+         ondragleave="this.style.borderColor='#D1D5DB'"
+         ondrop="event.preventDefault();processarNFDrop(event)">
+      <div style="font-size:40px;margin-bottom:8px">📄</div>
+      <div style="font-weight:700;color:#374151">Clique ou arraste o PDF aqui</div>
+      <div style="font-size:12px;color:#9CA3AF;margin-top:4px">Apenas arquivos .pdf</div>
+    </div>
+    <input type="file" id="nf-pdf-input" accept=".pdf" style="display:none"
+           onchange="processarNFInput(this)">
+
+    <!-- Status do processamento -->
+    <div id="nf-status" style="display:none;text-align:center;padding:1rem;
+         background:#F0FDF4;border-radius:8px;margin-bottom:1rem">
+      <div style="font-size:24px">⏳</div>
+      <div id="nf-status-txt" style="font-weight:600;color:#065F46;margin-top:4px">Lendo PDF...</div>
+    </div>
+
+    <!-- Tabela de produtos encontrados -->
+    <div id="nf-produtos-area" style="display:none">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px;color:#374151">
+        ✅ Produtos encontrados na nota — informe o preço de venda:
+      </div>
+      <div style="overflow-x:auto;border-radius:8px;border:1px solid #E5E7EB">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#F9FAFB">
+              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #E5E7EB">Código</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:1px solid #E5E7EB">Descrição</th>
+              <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E5E7EB;width:80px">Qtd</th>
+              <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E5E7EB;width:120px">Preço venda</th>
+              <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E5E7EB;width:50px">✓</th>
+            </tr>
+          </thead>
+          <tbody id="nf-produtos-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:1rem;justify-content:flex-end">
+        <button class="btn-secondary" onclick="fecharModalNF()">✖ Cancelar</button>
+        <button class="btn-primary" onclick="importarProdutosNF()">
+          ✅ Importar produtos selecionados
+        </button>
+      </div>
+    </div>
+
+    <!-- Botão fechar quando ainda não processou -->
+    <div id="nf-btn-fechar" style="text-align:right;margin-top:0.5rem">
+      <button class="btn-secondary" onclick="fecharModalNF()">✖ Fechar</button>
+    </div>
   </div>
 </div>
 
@@ -5583,6 +5660,331 @@ function filtrarAuditoria(filtro, btn) {
   document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderAuditoriaLista();
+}
+
+
+/*
+  ─────────────────────────────────────────────────────
+  IMPORTADOR DE NOTA FISCAL (PDF Tipo 1 — com texto)
+  ─────────────────────────────────────────────────────
+  Fluxo:
+  1. Usuário seleciona PDF
+  2. pdf.js extrai o texto de todas as páginas
+  3. Sistema identifica linhas de produto na nota
+  4. Monta tabela para o usuário conferir e preencher preço
+  5. Cria os produtos no Firebase automaticamente
+  ─────────────────────────────────────────────────────
+*/
+
+/* Configura worker do pdf.js */
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/* Abre o modal de importação */
+function abrirModalNF() {
+  document.getElementById('modal-nf').classList.add('active');
+  resetarModalNF();
+}
+
+/* Fecha e limpa o modal */
+function fecharModalNF() {
+  document.getElementById('modal-nf').classList.remove('active');
+  resetarModalNF();
+}
+
+/* Reseta o estado do modal */
+function resetarModalNF() {
+  document.getElementById('nf-pdf-input').value = '';
+  document.getElementById('nf-upload-area').style.display = 'block';
+  document.getElementById('nf-status').style.display = 'none';
+  document.getElementById('nf-produtos-area').style.display = 'none';
+  document.getElementById('nf-btn-fechar').style.display = 'block';
+  document.getElementById('nf-produtos-tbody').innerHTML = '';
+}
+
+/* Drag & drop */
+function processarNFDrop(event) {
+  const file = event.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') {
+    lerPDF(file);
+  } else {
+    toast('Selecione um arquivo PDF válido!', 'warn');
+  }
+}
+
+/* Input file */
+function processarNFInput(input) {
+  const file = input.files[0];
+  if (file) lerPDF(file);
+}
+
+/* Lê o PDF e extrai texto com pdf.js */
+async function lerPDF(file) {
+  if (typeof pdfjsLib === 'undefined') {
+    toast('Biblioteca PDF não carregada. Verifique a conexão.', 'danger');
+    return;
+  }
+
+  /* Mostra status de processamento */
+  document.getElementById('nf-upload-area').style.display = 'none';
+  document.getElementById('nf-btn-fechar').style.display = 'none';
+  const status    = document.getElementById('nf-status');
+  const statusTxt = document.getElementById('nf-status-txt');
+  status.style.display = 'block';
+  statusTxt.textContent = 'Lendo PDF...';
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf         = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let textoCompleto = '';
+
+    statusTxt.textContent = `Processando ${pdf.numPages} página(s)...`;
+
+    /* Extrai texto de cada página */
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page    = await pdf.getPage(i);
+      const txtContent = await page.getTextContent();
+      const linhas  = txtContent.items.map(item => item.str).join(' ');
+      textoCompleto += linhas + '\n';
+    }
+
+    statusTxt.textContent = 'Identificando produtos...';
+
+    /* Processa o texto e encontra os produtos */
+    const produtos = extrairProdutosDaNF(textoCompleto);
+
+    if (produtos.length === 0) {
+      status.style.display = 'none';
+      document.getElementById('nf-upload-area').style.display = 'block';
+      document.getElementById('nf-btn-fechar').style.display = 'block';
+      toast('Nenhum produto encontrado. Verifique se o PDF contém texto selecionável.', 'warn');
+      return;
+    }
+
+    /* Mostra a tabela de produtos */
+    status.style.display = 'none';
+    montarTabelaNF(produtos);
+
+  } catch (err) {
+    console.error('Erro ao ler PDF:', err);
+    status.style.display = 'none';
+    document.getElementById('nf-upload-area').style.display = 'block';
+    document.getElementById('nf-btn-fechar').style.display = 'block';
+    toast('Erro ao ler o PDF. Verifique se o arquivo não está corrompido.', 'danger');
+  }
+}
+
+/*
+  Extrai produtos do texto da nota fiscal.
+  Notas fiscais brasileiras (NF-e) seguem padrões como:
+  - Código do produto (numérico ou alfanumérico)
+  - Descrição
+  - Quantidade
+  - Valor unitário
+  
+  Esta função tenta identificar esses padrões automaticamente.
+*/
+function extrairProdutosDaNF(texto) {
+  const produtos = [];
+  const linhas   = texto.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+
+  /* Padrão 1: linhas com código + descrição + qtd + valor
+     Ex: "001 Frigideira Antiaderente 26cm 10 UN 89,90 899,00"
+     Ex: "PAN-001 JOGO DE PANELAS 5 PCS 50 UN 45,00 2250,00" */
+  const padraoNFe = /^([A-Z0-9\-\.]{2,20})\s+(.{5,60?}?)\s+(\d+[\.,]?\d*)\s+(?:UN|PC|CX|KG|MT|LT|PAR|JG|KIT|UNID|PCS)?/i;
+
+  /* Padrão 2: número de item + código + descrição + qtd
+     Ex: "1 7891234567890 Frigideira Antiaderente 10" */
+  const padraoItem = /^(\d{1,3})\s+(\d{8,14})\s+(.{5,60?})\s+(\d+[\.,]?\d*)/;
+
+  /* Palavras que indicam linha de produto (não cabeçalho) */
+  const palavrasProduto = ['un', 'pc', 'cx', 'kg', 'mt', 'lt', 'par', 'jg', 'kit', 'unid', 'pcs', 'und'];
+
+  /* Palavras de cabeçalho/rodapé para ignorar */
+  const ignorar = ['total', 'subtotal', 'desconto', 'frete', 'imposto', 'icms', 'ipi',
+                   'cfop', 'ncm', 'cst', 'emitente', 'destinatario', 'transportadora',
+                   'natureza', 'chave', 'numero', 'serie', 'data', 'hora', 'página',
+                   'valor total', 'base de calculo'];
+
+  const jaAdicionados = new Set();
+
+  for (const linha of linhas) {
+    const linhaLower = linha.toLowerCase();
+
+    /* Ignora linhas de cabeçalho/rodapé */
+    if (ignorar.some(p => linhaLower.includes(p))) continue;
+    if (linha.length < 10) continue;
+
+    /* Tenta identificar a quantidade na linha */
+    const numeros = linha.match(/(\d+)\s*(?:UN|PC|CX|KG|MT|LT|PAR|JG|KIT|UNID|PCS|UND)/i);
+    const qtd     = numeros ? parseInt(numeros[1]) : null;
+
+    /* Tenta padrão NF-e */
+    const m1 = linha.match(padraoNFe);
+    if (m1 && !jaAdicionados.has(m1[2].trim())) {
+      const descricao = m1[2].trim();
+      const codigo    = m1[1].trim();
+      const qtdFinal  = qtd || parseInt(m1[3]) || 1;
+
+      /* Valida que é realmente um produto */
+      if (descricao.length >= 5 && !/^\d+$/.test(descricao)) {
+        jaAdicionados.add(descricao);
+        produtos.push({
+          codigo:    codigo,
+          descricao: descricao.toUpperCase(),
+          qty:       qtdFinal,
+          sku:       gerarSKU(descricao),
+        });
+        continue;
+      }
+    }
+
+    /* Tenta padrão com item numerado */
+    const m2 = linha.match(padraoItem);
+    if (m2 && !jaAdicionados.has(m2[3].trim())) {
+      const descricao = m2[3].trim();
+      const qtdFinal  = qtd || parseInt(m2[4]) || 1;
+
+      if (descricao.length >= 5) {
+        jaAdicionados.add(descricao);
+        produtos.push({
+          codigo:    m2[2].trim(),
+          descricao: descricao.toUpperCase(),
+          qty:       qtdFinal,
+          sku:       gerarSKU(descricao),
+        });
+      }
+    }
+  }
+
+  /* Se não encontrou com padrão rígido, tenta heurística mais ampla */
+  if (produtos.length === 0) {
+    for (const linha of linhas) {
+      const linhaLower = linha.toLowerCase();
+      if (ignorar.some(p => linhaLower.includes(p))) continue;
+      if (linha.length < 15 || linha.length > 200) continue;
+
+      const temQtd = palavrasProduto.some(p =>
+        new RegExp('\\d+\\s*' + p + '\\b', 'i').test(linha)
+      );
+      const temNumero = /\d/.test(linha);
+      const numeros = linha.match(/(\d{1,5})/g);
+
+      if (temNumero && numeros && !ignorar.some(p => linhaLower.includes(p))) {
+        const qtdFinal = temQtd
+          ? parseInt(linha.match(/(\d+)\s*(?:UN|PC|CX|KG|MT|LT|PAR|JG|KIT|UNID|PCS|UND)/i)?.[1]) || 1
+          : parseInt(numeros[numeros.length - 1]) || 1;
+
+        /* Extrai descrição removendo números do início/fim */
+        const desc = linha.replace(/^\d+\s+/, '').replace(/\s+\d[\d\s.,]*$/, '').trim();
+        if (desc.length >= 8 && !produtos.some(p => p.descricao === desc.toUpperCase())) {
+          produtos.push({
+            codigo:    numeros[0] || '—',
+            descricao: desc.toUpperCase(),
+            qty:       qtdFinal,
+            sku:       gerarSKU(desc),
+          });
+        }
+      }
+    }
+  }
+
+  return produtos.slice(0, 50); /* máximo 50 produtos por NF */
+}
+
+/* Gera SKU automático baseado na descrição */
+function gerarSKU(descricao) {
+  const palavras = descricao.trim().toUpperCase().split(/\s+/);
+  const prefix   = palavras.slice(0, 2).map(p => p.substring(0, 3)).join('');
+  const num      = String(Math.floor(Math.random() * 900) + 100);
+  return prefix.substring(0, 6) + '-' + num;
+}
+
+/* Monta a tabela de produtos encontrados */
+function montarTabelaNF(produtos) {
+  const tbody = document.getElementById('nf-produtos-tbody');
+  tbody.innerHTML = produtos.map((p, i) => `
+    <tr style="border-bottom:1px solid #F3F4F6">
+      <td style="padding:8px 12px;font-size:12px;color:#6B7280">${p.codigo}</td>
+      <td style="padding:8px 12px;font-weight:600;font-size:13px">${p.descricao}</td>
+      <td style="padding:8px 12px;text-align:center">
+        <input type="number" value="${p.qty}" min="1"
+               id="nf-qty-${i}" style="width:60px;padding:4px;border:1px solid #D1D5DB;
+               border-radius:6px;text-align:center;font-size:13px">
+      </td>
+      <td style="padding:8px 12px;text-align:center">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:12px;color:#6B7280">R$</span>
+          <input type="number" step="0.01" min="0" placeholder="0,00"
+                 id="nf-preco-${i}" style="width:80px;padding:4px;border:1px solid #D1D5DB;
+                 border-radius:6px;text-align:center;font-size:13px">
+        </div>
+      </td>
+      <td style="padding:8px 12px;text-align:center">
+        <input type="checkbox" id="nf-check-${i}" checked
+               style="width:16px;height:16px;cursor:pointer">
+      </td>
+    </tr>
+  `).join('');
+
+  /* Guarda os produtos no dataset para importar depois */
+  tbody.dataset.produtos = JSON.stringify(produtos);
+
+  document.getElementById('nf-produtos-area').style.display = 'block';
+}
+
+/* Importa os produtos selecionados para o sistema */
+async function importarProdutosNF() {
+  const tbody   = document.getElementById('nf-produtos-tbody');
+  const produtos = JSON.parse(tbody.dataset.produtos || '[]');
+  let importados = 0;
+  let erros      = 0;
+
+  for (let i = 0; i < produtos.length; i++) {
+    const check = document.getElementById(`nf-check-${i}`);
+    if (!check || !check.checked) continue;
+
+    const preco = parseFloat(document.getElementById(`nf-preco-${i}`)?.value);
+    const qty   = parseInt(document.getElementById(`nf-qty-${i}`)?.value) || 1;
+
+    if (!preco || preco <= 0) {
+      toast(`Informe o preço de "${produtos[i].descricao}"!`, 'warn');
+      return;
+    }
+
+    const novoProd = {
+      id:       Date.now() + i,
+      name:     produtos[i].descricao,
+      price:    preco,
+      qty:      qty,
+      min:      Math.max(1, Math.floor(qty * 0.1)), /* alerta em 10% do estoque */
+      cat:      'Utensilios de Cozinha',
+      sku:      produtos[i].sku,
+      platform: ['manual'],
+      img:      '',
+    };
+
+    try {
+      await salvarProdutoFS(novoProd);
+      products.push(novoProd);
+      importados++;
+    } catch(e) {
+      console.error('Erro ao importar produto:', e);
+      erros++;
+    }
+  }
+
+  fecharModalNF();
+  renderAll();
+
+  if (importados > 0) {
+    toast(`✅ ${importados} produto(s) importado(s) com sucesso!`);
+  }
+  if (erros > 0) {
+    toast(`⚠️ ${erros} produto(s) não puderam ser importados.`, 'warn');
+  }
 }
 
 /* Inicializa o sistema: verifica sessão antes de tudo */
