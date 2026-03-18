@@ -764,14 +764,17 @@ tbody td { padding: 14px 18px; font-size: 15px; }  /* << TAMANHO DA FONTE NAS TA
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.5);
   z-index: 500;
-  align-items: center; justify-content: center;
+  align-items: flex-start; justify-content: center;
+  overflow-y: auto;         /* permite rolar o modal */
+  padding: 1rem 0;          /* respiro no topo e baixo */
 }
 .modal-overlay.active { display: flex; }
 .modal-box {
   background: white; border-radius: 16px;
   padding: 2rem; width: 100%; max-width: 540px;
   box-shadow: var(--sombra-forte);
-  margin: 1rem;
+  margin: 1rem auto;        /* centralizado horizontalmente */
+  max-height: none;         /* sem limite de altura — scroll do overlay cuida */
 }
 .modal-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 1.5rem; color: var(--cor-texto); }
 .modal-header {
@@ -1202,7 +1205,7 @@ tbody td { padding: 14px 18px; font-size: 15px; }  /* << TAMANHO DA FONTE NAS TA
   width: 100%;
   max-width: 560px;
   box-shadow: var(--sombra-forte);
-  margin: 1rem;
+  margin: 1rem auto;
 }
 
 /* Responsivo mobile para pedidos */
@@ -5230,6 +5233,24 @@ function renderPlatBadges(plataformas) {
       return `<span class="plat-badge-mini" style="background:${cor}">${sigla}</span>`;
     }).join('')}
   </div>`;
+}
+
+
+/* ── SIDEBAR MOBILE ─────────────────────────────────────────
+   Funções chamadas pelo botão ☰ no topo.
+   Sem elas o menu mobile não abre — por isso adicionamos
+   dentro do window.load para garantir que o DOM existe.
+*/
+function abrirSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function fecharSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('active');
+  document.body.style.overflow = '';
 }
 
 /* Inicializa o sistema: verifica sessão antes de tudo */
